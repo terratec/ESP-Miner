@@ -5,6 +5,8 @@
 #include "esp_lvgl_port.h"
 #include "driver/gpio.h"
 
+#include "display.h"
+
 #define BUTTON_BOOT_GPIO       GPIO_NUM_0
 #define ESP_INTR_FLAG_DEFAULT  0
 #define LONG_PRESS_DURATION_MS 2000
@@ -31,6 +33,7 @@ static void IRAM_ATTR button_isr_handler(void *arg)
 static void button_short_clicked_event_cb(lv_event_t *e)
 {
     ESP_LOGI(TAG, "Short button click detected");
+    display_on();
     button_short_clicked_fn();
 }
 

@@ -136,6 +136,7 @@ export class EditComponent implements OnInit {
         this.form = this.fb.group({
           flipscreen: [info.flipscreen == 1],
           invertscreen: [info.invertscreen == 1],
+          displayTimeout: [info.displayTimeout, [Validators.required]],
           stratumURL: [info.stratumURL, [
             Validators.required,
             Validators.pattern(/^(?!.*stratum\+tcp:\/\/).*$/),

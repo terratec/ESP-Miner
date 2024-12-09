@@ -152,6 +152,10 @@ void SYSTEM_init_peripherals(GlobalState * GLOBAL_STATE) {
         ESP_LOGW(TAG, "Screen init failed");
     }
 
+    if (display_timeout_start(GLOBAL_STATE) != ESP_OK) {
+        ESP_LOGW(TAG, "Display timeout init failed");
+    }
+
     netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
 }
 

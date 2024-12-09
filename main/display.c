@@ -24,12 +24,22 @@
 #define LCD_CMD_BITS           8
 #define LCD_PARAM_BITS         8
 
+#define DISPLAY_TIMEOUT_UPDATE_MS 60000
+
 static const char * TAG = "display";
+
+static esp_lcd_panel_handle_t panel_handle = NULL;
+lv_timer_t * display_timeout_timer = NULL;
+static bool display_state_on = false;
+static uint16_t display_timeout_counter = 0;
 
 static lv_theme_t theme;
 static lv_style_t scr_style;
 
 extern const lv_font_t lv_font_portfolio_6x8;
+
+esp_err_t display_on(void);
+esp_err_t display_off(void);
 
 static void theme_apply(lv_theme_t *theme, lv_obj_t *obj) {
     if (lv_obj_get_parent(obj) == NULL) {
@@ -61,7 +71,6 @@ esp_err_t display_init(void * pvParameters)
     ESP_RETURN_ON_ERROR(esp_lcd_new_panel_io_i2c(i2c_master_bus_handle, &io_config, &io_handle), TAG, "Failed to initialise i2c panel bus");
 
     ESP_LOGI(TAG, "Install SSD1306 panel driver");
-    esp_lcd_panel_handle_t panel_handle = NULL;
     esp_lcd_panel_dev_config_t panel_config = {
         .bits_per_pixel = 1,
         .reset_gpio_num = -1,
@@ -122,11 +131,64 @@ esp_err_t display_init(void * pvParameters)
 
     if (esp_lcd_panel_init_err == ESP_OK) {
         // Only turn on the screen when it has been cleared
-        ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(panel_handle, true), TAG, "Panel display on failed");   
+        esp_err_t esp_err = display_on();
+        if (ESP_OK != esp_err) {
+            return esp_err;
+        }
 
         GLOBAL_STATE->SYSTEM_MODULE.is_screen_active = true;
     } else {
         ESP_LOGW(TAG, "No display found.");
+    }
+
+    return ESP_OK;
+}
+
+static void display_timeout_cb(lv_timer_t * timer)
+{
+    const uint16_t display_timeout_config = nvs_config_get_u16(NVS_CONFIG_DISPLAY_TIMEOUT, 0);
+
+    if (0 < display_timeout_config) {
+        if (display_timeout_config <= display_timeout_counter) {
+            display_off();
+        } else {
+            display_timeout_counter++;
+        }
+    } else {
+        display_on();
+    }
+}
+
+esp_err_t display_timeout_start(void * pvParameters)
+{
+    GlobalState * GLOBAL_STATE = (GlobalState *) pvParameters;
+
+    if (GLOBAL_STATE->SYSTEM_MODULE.is_screen_active) {
+        display_timeout_timer = lv_timer_create(display_timeout_cb, DISPLAY_TIMEOUT_UPDATE_MS, NULL);
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t display_on(void)
+{
+    if (!display_state_on && (NULL != panel_handle)) {
+        ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(panel_handle, true), TAG, "Panel display on failed");
+        display_state_on = true;
+        display_timeout_counter = 0;
+        if (NULL != display_timeout_timer) {
+            lv_timer_reset(display_timeout_timer);
+        }
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t display_off(void)
+{
+    if (display_state_on && (NULL != panel_handle)) {
+        ESP_RETURN_ON_ERROR(esp_lcd_panel_disp_on_off(panel_handle, false), TAG, "Panel display off failed");
+        display_state_on = false;
     }
 
     return ESP_OK;
